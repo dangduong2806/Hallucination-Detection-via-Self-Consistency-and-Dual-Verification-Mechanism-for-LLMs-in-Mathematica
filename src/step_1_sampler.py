@@ -24,7 +24,7 @@ class AdaptiveSampler:
         # --- BƯỚC 1: Initial Batching (Sinh tập khởi tạo) ---
         # Paper luôn bắt đầu với k0 mẫu để có cái nhìn thống kê ban đầu
 
-        initial_batch = self.llm.generate_with_confidence(prompt, num_return_sequences=self.min_samples)
+        initial_batch = self.llm.generate(prompt, num_return_sequences=self.min_samples)
 
         for text, conf in initial_batch:
             # Parse text thành cấu trúc steps cho bước sau
@@ -59,7 +59,7 @@ class AdaptiveSampler:
             # c. Nếu chưa đạt, sinh thêm (Incremental Sampling)
             # Sinh thêm 1 mẫu (hoặc batch nhỏ)
             print(f"   [Sampler] Consistency {consistency_score:.2f} < {self.threshold}. Generating +1 path...")
-            new_batch = self.llm.generate_with_confidence(prompt, num_return_sequences=1)
+            new_batch = self.llm.generate(prompt, num_return_sequences=1)
 
             for text, conf in new_batch:
                 steps = self._parse_text_to_steps(text, conf)
