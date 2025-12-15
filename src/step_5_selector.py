@@ -67,7 +67,7 @@ class EntropySelector:
         best_candidate = max(candidates, key=lambda x: x['prob'])
 
         return {
-            'final_anser': best_candidate['answer'],
+            'final_answer': best_candidate['answer'],
             'confidence': best_candidate['prob'],
             'entropy': entropy,
             'all_candidates': candidates
