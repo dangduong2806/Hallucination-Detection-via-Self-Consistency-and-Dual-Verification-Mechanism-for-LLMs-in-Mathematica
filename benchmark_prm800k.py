@@ -5,6 +5,8 @@ import pandas as pd
 from tqdm import tqdm
 import logging
 import yaml
+import time
+import torch
 
 from models.llm_engine import LLMEngine
 from src.step_1_sampler import AdaptiveSampler
@@ -66,9 +68,13 @@ def run_benchmark():
         gt = item['ground_truth']
 
         try:
+            start_time = time.time()
+            torch.cuda.reset_peak_memory_stats()
+
             # Gọi pipeline
             logger.info(">>> Step 1: Adaptive Sampling...")
             raw_paths = sampler.sample(problem)
+            sample_count = len(raw_paths)
             logger.info(">>> Step 2: Atomic & Logical Verification (SymPy + Logprobs)...")
             verified_paths = []
             valid_path_count = 0
@@ -104,17 +110,57 @@ def run_benchmark():
             refined_graph = struct_verifier.verify_structure(raw_graph)
 
             # Debug: In ra một vài node quan trọng
-        top_nodes = sorted(refined_graph.nodes(data=True), key=lambda x: x[1].get('final_score', 0), reverse=True)[:3]
-        logger.debug(f"    Top robust nodes: {[n[1].get('content') for n in top_nodes]}")
+            top_nodes = sorted(refined_graph.nodes(data=True), key=lambda x: x[1].get('final_score', 0), reverse=True)[:3]
+            logger.debug(f"    Top robust nodes: {[n[1].get('content') for n in top_nodes]}")
 
-        # ---------------------------------------------------------
-        # BƯỚC 5: Global Selection (Entropy Minimization)
-        # ---------------------------------------------------------
-        logger.info(">>> Step 5: Final Selection (Entropy Minimization)...")
-        result = selector.select_answer(refined_graph)
+            # ---------------------------------------------------------
+            # BƯỚC 5: Global Selection (Entropy Minimization)
+            # ---------------------------------------------------------
+            logger.info(">>> Step 5: Final Selection (Entropy Minimization)...")
+            result = selector.select_answer(refined_graph)
 
-        pred = result['final_answer']
-        
+            end_time = time.time()
+            peak_memory = torch.cuda.max_memory_allocated() / (1024 ** 2) # MB
+
+            pred = result['final_answer']
+            best_path_text = result['final_path_content']
+            metrics = math_eval.compute_all_metrics(
+                generated_path_text= best_path_text,
+                ground_truth_value_str= gt
+            )
+            print(f"EE: {metrics['EE']}, ASS: {metrics['ASS']}, TSA: {metrics['TSA']}")
+            record = {
+                "problem": problem[:30] + "...",
+                "EE": metrics['EE'],
+                "ASS": metrics['ASS'],
+                "TSA": metrics['TSA'],
+                "SE": sample_count,
+                "CO": end_time - start_time,
+                "MF": peak_memory
+            }
+            results.append(record)
+        except Exception as e:
+            print("❌ Failed to generate a valid answer.")
+            
+    # 3. Aggregation (Tính trung bình)
+    df = pd.DataFrame(results)
+    print("FINAL BENCHMARK RESULTS (PRM800K)")
+    print("="*50)
+    print(f"1. Expression Equivalence (EE - Accuracy): {df['EE'].mean():.4f}")
+    print(f"2. Algebraic Simplification (ASS):         {df['ASS'].mean():.4f}")
+    print(f"3. Transformation Step Acc (TSA):          {df['TSA'].mean():.4f}")
+    print("-" * 30)
+    print(f"4. Sample Efficiency (SE - Avg Samples):   {df['SE'].mean():.2f}")
+    print(f"5. Comp Overhead (CO - Avg Time s):        {df['CO'].mean():.4f}")
+    print(f"6. Memory Footprint (MF - Peak MB):        {df['MF'].max():.2f}") # Lấy Max thay vì Mean cho RAM
+    print("="*50)
+
+    # Lưu kết quả chi tiết
+    df.to_csv("benchmark_results.csv", index=False)
+    print("Detailed results saved to benchmark_results.csv")
+
+if __name__ == "__main__":
+    run_benchmark()
 
             
 
