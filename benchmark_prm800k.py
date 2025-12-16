@@ -30,10 +30,11 @@ def load_prm800k_test_set(file_path, limit=50):
             if i >= limit: break
             item = json.loads(line)
             # PRM800K format mapping (tuỳ chỉnh theo file thật bạn tải)
-            # Giả sử: {'question': '...', 'answer': '...'}
+            
+            question = item.get('question', {})
             data.append({
-                'problem': item.get('question', ''),
-                'ground_truth': item.get('answer', '') # Hoặc final_answer
+                'problem': question.get('problem', ''),
+                'ground_truth': question.get('ground_truth_answer', '') # Hoặc final_answer
             })
     return data
 
@@ -156,8 +157,8 @@ def run_benchmark():
     print("="*50)
 
     # Lưu kết quả chi tiết
-    df.to_csv("benchmark_results.csv", index=False)
-    print("Detailed results saved to benchmark_results.csv")
+    # df.to_csv("benchmark_results.csv", index=False)
+    # print("Detailed results saved to benchmark_results.csv")
 
 if __name__ == "__main__":
     run_benchmark()
