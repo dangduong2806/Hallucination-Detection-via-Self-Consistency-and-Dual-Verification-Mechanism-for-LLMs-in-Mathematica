@@ -119,7 +119,17 @@ class ResearchPipeline:
         logger.info(">>> Step 3: Building Reasoning Graph (SymPy Isomorphism)...")
         raw_graph = self.graph_builder.build_graph(verified_paths)
         logger.info(f"    Graph built with {raw_graph.number_of_nodes()} nodes and {raw_graph.number_of_edges()} edges.")
-        logger.info(f"Graph: {raw_graph}")
+
+        # --- [DEBUG PRINT] In ra cấu trúc đồ thị bước 3 ---
+        print("\n    [Visualizing Step 3: Graph Structure]")
+        # In ra các node có nhiều kết nối nhất (điểm hội tụ của các luồng suy luận)
+        # Sắp xếp theo degree (bậc)
+        top_degree_nodes = sorted(raw_graph.degree, key=lambda x: x[1], reverse=True)[:3]
+        for node_id, degree in top_degree_nodes:
+            if node_id == "ROOT": continue
+            content = raw_graph.nodes[node_id].get('content', '')[:60] # Cắt ngắn để dễ nhìn
+            count = raw_graph.nodes[node_id].get('count', 0)
+            print(f"      Node {node_id} (Freq: {count}, Degree: {degree}): '{content}...'")
 
         # ---------------------------------------------------------
         # BƯỚC 4: Structural Verification (Global Dependency)
@@ -131,6 +141,26 @@ class ResearchPipeline:
         top_nodes = sorted(refined_graph.nodes(data=True), key=lambda x: x[1].get('final_score', 0), reverse=True)[:3]
         logger.debug(f"    Top robust nodes: {[n[1].get('content') for n in top_nodes]}")
         logger.info(f"Structural Verification Graph: {refined_graph}")
+
+        # --- [DEBUG PRINT] In ra kết quả chấm điểm bước 4 ---
+        print("\n    [Visualizing Step 4: Re-weighted Scores]")
+        print(f"      {'Node Content (Truncated)':<50} | {'Local':<6} | {'Global':<6} | {'FINAL':<6}")
+        print("      " + "-"*80)
+        
+        # Lấy danh sách node kèm data
+        all_nodes = refined_graph.nodes(data=True)
+        # Sắp xếp theo điểm Final Score từ cao xuống thấp
+        sorted_nodes = sorted(all_nodes, key=lambda x: x[1].get('final_score', 0), reverse=True)
+        
+        # In Top 5 node có điểm cao nhất
+        for node_id, data in sorted_nodes[:5]:
+            if node_id == "ROOT": continue
+            content = data.get('content', '').replace('\n', ' ')[:45]
+            local_s = data.get('local_score', 0.0)
+            global_s = data.get('global_score', 0.0)
+            final_s = data.get('final_score', 0.0)
+            print(f"      {content:<50} | {local_s:.4f} | {global_s:.4f} | {final_s:.4f}")
+        print("      " + "-"*80 + "\n")
 
         # ---------------------------------------------------------
         # BƯỚC 5: Global Selection (Entropy Minimization)
