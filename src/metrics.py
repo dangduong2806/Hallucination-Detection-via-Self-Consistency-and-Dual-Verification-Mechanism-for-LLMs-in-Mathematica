@@ -74,23 +74,53 @@ class DeepMathMetrics:
         }
     
     # ================= HELPERS =================#
+    # def _extract_steps_with_math(self, text):
+    #     """Tách dòng và parse SymPy cho từng dòng"""
+    #     lines = [l.strip() for l in text.split('\n') if l.strip()]
+    #     parsed_steps = []
+
+    #     for line in lines:
+    #         # Bỏ qua dòng text không có số/toán
+    #         if not any(c.isdigit() for c in line): continue
+
+    #         # cố gắng parse
+    #         try:
+    #             # Lấy phần toán trong dòng (cơ bản)
+    #             math_part = line.split(":")[-1].strip() # Fix cho dạng "Step 1: x+1=2"
+    #             expr = self._safe_parse(math_part)
+    #             parsed_steps.append({'text': line, 'expr': expr})
+    #         except:
+    #             continue
+    #     return parsed_steps
+    
     def _extract_steps_with_math(self, text):
-        """Tách dòng và parse SymPy cho từng dòng"""
+        """
+        Phiên bản Robust hơn: Chấp nhận cả những dòng không có 'Step X:'
+        miễn là nó chứa biểu thức toán học (dấu =, >, <, +, -...).
+        """
         lines = [l.strip() for l in text.split('\n') if l.strip()]
         parsed_steps = []
-
+        
         for line in lines:
-            # Bỏ qua dòng text không có số/toán
-            if not any(c.isdigit() for c in line): continue
-
-            # cố gắng parse
-            try:
-                # Lấy phần toán trong dòng (cơ bản)
-                math_part = line.split(":")[-1].strip() # Fix cho dạng "Step 1: x+1=2"
-                expr = self._safe_parse(math_part)
-                parsed_steps.append({'text': line, 'expr': expr})
-            except:
+            # 1. Bỏ qua các dòng rác (lời dẫn không có số/toán)
+            # Kiểm tra xem dòng này có chứa ít nhất 1 toán tử hoặc số không
+            if not any(char in line for char in "=+-*/^<>") and not any(char.isdigit() for char in line):
                 continue
+
+            # 2. Trích xuất phần toán học
+            # Nếu có dấu ":", khả năng cao là "Step 1: x=5" -> lấy phần sau dấu :
+            if ":" in line:
+                potential_math = line.split(":", 1)[1].strip()
+            else:
+                potential_math = line # Lấy cả dòng nếu không có label
+
+            # 3. Thử parse
+            expr = self._safe_parse(potential_math)
+            
+            # Nếu parse được (không phải None), tính là 1 bước hợp lệ
+            if expr is not None:
+                parsed_steps.append({'text': line, 'expr': expr})
+            
         return parsed_steps
     
     def _safe_parse(self, text):
