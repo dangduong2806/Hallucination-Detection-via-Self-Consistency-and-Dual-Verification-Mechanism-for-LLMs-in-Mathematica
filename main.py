@@ -85,6 +85,7 @@ class ResearchPipeline:
         raw_paths = self.sampler.sample(full_prompt)
         sample_count = len(raw_paths)
         logger.info(f"    Generated {len(raw_paths)} raw reasoning paths.")
+        logger.info(f"All paths to data: {raw_paths}")
 
         # ---------------------------------------------------------
         # BƯỚC 2: Local Verification (Atomic + Logical Check)
@@ -109,6 +110,8 @@ class ResearchPipeline:
         if not verified_paths:
             logger.warning("!!! No valid paths found. Pipeline aborted.")
             return None
+        else:
+            logger.info(f"Verified steps: {verified_paths}")
 
         # ---------------------------------------------------------
         # BƯỚC 3: Graph Construction (Isomorphism Isomorphism)
@@ -116,6 +119,7 @@ class ResearchPipeline:
         logger.info(">>> Step 3: Building Reasoning Graph (SymPy Isomorphism)...")
         raw_graph = self.graph_builder.build_graph(verified_paths)
         logger.info(f"    Graph built with {raw_graph.number_of_nodes()} nodes and {raw_graph.number_of_edges()} edges.")
+        logger.info(f"Graph: {raw_graph}")
 
         # ---------------------------------------------------------
         # BƯỚC 4: Structural Verification (Global Dependency)
@@ -126,6 +130,7 @@ class ResearchPipeline:
         # Debug: In ra một vài node quan trọng
         top_nodes = sorted(refined_graph.nodes(data=True), key=lambda x: x[1].get('final_score', 0), reverse=True)[:3]
         logger.debug(f"    Top robust nodes: {[n[1].get('content') for n in top_nodes]}")
+        logger.info(f"Structural Verification Graph: {refined_graph}")
 
         # ---------------------------------------------------------
         # BƯỚC 5: Global Selection (Entropy Minimization)
