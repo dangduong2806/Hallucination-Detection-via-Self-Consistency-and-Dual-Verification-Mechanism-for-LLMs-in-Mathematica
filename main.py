@@ -44,6 +44,32 @@ class ResearchPipeline:
         self.struct_verifier = StructuralVerifier(self.config)
         self.selector = EntropySelector()
 
+    def _build_prompt(self, problem_text):
+        """
+        Tạo prompt theo chuẩn Llama-3 Instruct, ép buộc định dạng Step-by-Step.
+        """
+        # System prompt định nghĩa vai trò và định dạng output bắt buộc
+        system_prompt = (
+            "You are a mathematics expert. Solve the following problem step-by-step.\n"
+            "IMPORTANT FORMATTING RULES:\n"
+            "1. Each step must be on a new line.\n"
+            "2. Start each step with 'Step k:' (e.g., 'Step 1:', 'Step 2:').\n"
+            "3. State the mathematical expression clearly in each step.\n"
+            "4. The final answer must be boxed using LaTeX format: \\boxed{answer}.\n"
+            "5. Do not output anything else (like conversational filler)."
+        )
+        
+        # User prompt chứa bài toán
+        user_prompt = f"Problem: {problem_text}\n\nSolution:"
+        
+        # Format chuẩn của Llama-3
+        full_prompt = (
+            f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|>"
+            f"<|start_header_id|>user<|end_header_id|>\n\n{user_prompt}<|eot_id|>"
+            f"<|start_header_id|>assistant<|end_header_id|>\n\n"
+        )
+        return full_prompt
+
     def run(self, problem_text):
         """
         Thực thi quy trình 5 bước theo paper.
@@ -54,7 +80,10 @@ class ResearchPipeline:
         # BƯỚC 1: Adaptive Sampling (Sinh mẫu thích ứng)
         # ---------------------------------------------------------
         logger.info(">>> Step 1: Adaptive Sampling...")
-        raw_paths = self.sampler.sample(problem_text)
+        
+        full_prompt = self._build_prompt(problem_text=problem_text)
+        raw_paths = self.sampler.sample(full_prompt)
+        sample_count = len(raw_paths)
         logger.info(f"    Generated {len(raw_paths)} raw reasoning paths.")
 
         # ---------------------------------------------------------
@@ -104,7 +133,7 @@ class ResearchPipeline:
         logger.info(">>> Step 5: Final Selection (Entropy Minimization)...")
         result = self.selector.select_answer(refined_graph)
         
-        return result
+        return result, sample_count
 
 def main():
     # Parse Command Line Arguments
@@ -127,7 +156,7 @@ def main():
     problem_to_solve = args.problem if args.problem else default_problem
     
     # Chạy
-    result = pipeline.run(problem_to_solve)
+    result, _ = pipeline.run(problem_to_solve)
     
     # Hiển thị kết quả cuối cùng
     if result:
