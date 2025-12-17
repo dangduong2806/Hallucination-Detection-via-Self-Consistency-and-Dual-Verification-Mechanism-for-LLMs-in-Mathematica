@@ -1,6 +1,7 @@
 import sympy
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 from sympy import Eq, simplify, count_ops, Symbol, Number
+import re
 
 class DeepMathMetrics:
     def __init__(self):
@@ -19,7 +20,10 @@ class DeepMathMetrics:
         """
         # 1. Tiền xử lý: Tách các bước và trích xuất biểu thức toán học
         steps = self._extract_steps_with_math(generated_path_text)
-        gt_expr = self._safe_parse(ground_truth_value_str)
+        # 2. Parsing Ground Truth (QUAN TRỌNG: Cần làm sạch trước)
+        # Ép kiểu string để tránh lỗi nếu JSON trả về số int/float
+        clean_gt_str = self._clean_latex(str(ground_truth_value_str))
+        gt_expr = self._safe_parse(clean_gt_str)
 
         if not steps:
             return {"EE": 0.0, "ASS": 0.0, "TSA": 0.0}
@@ -109,8 +113,10 @@ class DeepMathMetrics:
             else:
                 potential_math = line # Lấy cả dòng nếu không có label
 
+            # Clean các ký tự latex thì mới check được
+            cleaned_math = self._clean_latex(potential_math)
             # 3. Thử parse
-            expr = self._safe_parse(potential_math)
+            expr = self._safe_parse(cleaned_math)
             
             # Nếu parse được (không phải None), tính là 1 bước hợp lệ
             if expr is not None:
@@ -119,13 +125,25 @@ class DeepMathMetrics:
         return parsed_steps
     
     def _clean_latex(self, text):
-        """Làm sạch các ký tự LaTeX gây nhiễu trước khi đưa vào SymPy"""
-        text = text.strip()
-        # Loại bỏ command latex thường gặp
+        """
+        Làm sạch các ký tự LaTeX để SymPy có thể hiểu được.
+        """
+        if not text: return ""
+        text = str(text).strip()
+        
+        # 1. Xử lý các command bao đóng thường gặp
         text = text.replace(r"\boxed", "").replace(r"\overline", "")
-        text = text.replace(r"\$", "") # Bỏ dấu $ tiền tệ hoặc latex
-        text = text.replace("{", "(").replace("}", ")") # Đổi ngoặc nhọn thành ngoặc đơn cho hàm
-        text = text.replace("\\", "") # Bỏ backslash
+        text = text.replace(r"\$", "") # Bỏ dấu $
+        text = text.replace("\\", "")  # Bỏ backslash còn lại
+        
+        # 2. Xử lý phân số \frac{a}{b} -> (a)/(b)
+        # Regex này tìm \frac{...}{...} và thay thế bằng phép chia
+        # Lưu ý: Regex đơn giản, không đệ quy, nhưng đủ cho PRM800K cơ bản
+        text = re.sub(r'frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', text)
+        
+        # 3. Thay ngoặc nhọn còn sót lại bằng ngoặc đơn (cho an toàn)
+        text = text.replace("{", "(").replace("}", ")")
+        
         return text
     
     def _safe_parse(self, text):
@@ -195,48 +213,87 @@ class DeepMathMetrics:
     #         return False
     #     except:
     #         return False
+
     def _check_consistency_robust(self, step_expr, gt_expr):
         """
-        Kiểm tra tính đúng đắn một cách thông minh (Robust TSA).
+        Kiểm tra tính đúng đắn (Correctness) của bước trung gian so với GT.
+        Cover đầy đủ: Số học, Thay thế nghiệm, và Biến đổi đại số.
+        
         Returns: (is_correct, is_checkable)
         """
         try:
             if gt_expr is None: return False, False
 
-            # Lấy các biến trong bước hiện tại
-            step_symbols = step_expr.free_symbols
-            
-            # CASE 1: Bước toán học chỉ toàn số (Arithmetic Check)
-            # VD: "29/100 = 0.29" -> Check luôn đúng sai, không cần GT
-            if not step_symbols:
+            # Lấy tập hợp biến
+            step_vars = step_expr.free_symbols
+            gt_vars = gt_expr.free_symbols if hasattr(gt_expr, 'free_symbols') else set()
+
+            # --- GROUP 1: ARITHMETIC (Không có biến) ---
+            # VD: "29/100 = 0.29" hoặc "1 + 1 = 2"
+            if not step_vars:
                 if isinstance(step_expr, Eq):
-                    # Check xem 2 vế có bằng nhau không
+                    # Check 2 vế bằng nhau (sai số nhỏ cho float)
                     is_eq = abs(float(step_expr.lhs) - float(step_expr.rhs)) < 1e-6
                     return is_eq, True
-                return False, False # Không phải phương trình, không check được
+                else:
+                    # Nếu chỉ là biểu thức số "1+1", ko thể check đúng sai nếu ko có ngữ cảnh
+                    return False, False
 
-            # CASE 2: Ground Truth là một con số cụ thể (VD: 29)
-            # Và bước hiện tại chỉ có 1 biến (VD: x = 29, hoặc 2x = 58)
-            if len(step_symbols) == 1 and (isinstance(gt_expr, (Number, float, int)) or not gt_expr.free_symbols):
-                var = list(step_symbols)[0]
-                # Thay số GT vào biến
-                check_val = step_expr.subs(var, gt_expr)
-                if isinstance(check_val, Eq):
-                    # Check lhs - rhs == 0 ?
-                    diff = simplify(check_val.lhs - check_val.rhs)
-                    return (diff == 0), True
-            
-            # CASE 3: Ground Truth là biểu thức (x=5) và Step có biến x
-            # (Logic cũ, giữ lại)
-            if hasattr(gt_expr, 'free_symbols') and gt_expr.free_symbols:
-                # Logic phức tạp, tạm skip để tránh False Positive
-                pass
+            # --- GROUP 2: ALGEBRAIC EQUIVALENCE (Cả 2 đều có biến) ---
+            # VD: GT="2x", Step="x+x". Dùng cho bài toán rút gọn.
+            if step_vars and gt_vars:
+                # Nếu tập biến khớp nhau (cùng là x, hoặc cùng là a,b)
+                # Hoặc step là phương trình, gt là biểu thức...
+                
+                # Logic: Hiệu số giữa Step và GT phải bằng 0 (hoặc tương đương)
+                # Lưu ý: Nếu Step là Eq(A, B) và GT là C. Thì A-B phải tương đương C? Không hẳn.
+                # Thường bài rút gọn: Step là Eq(P, simplified_P) hoặc chỉ là simplified_P.
+                
+                # Chuyển đổi Step về dạng biểu thức (LHS - RHS)
+                val_step = (step_expr.lhs - step_expr.rhs) if isinstance(step_expr, Eq) else step_expr
+                val_gt = (gt_expr.lhs - gt_expr.rhs) if isinstance(gt_expr, Eq) else gt_expr
+                
+                # Check: simplify(val_step - val_gt) == 0
+                # VD: Step: x+x, GT: 2x. -> (2x) - (2x) = 0 -> True.
+                if simplify(val_step - val_gt) == 0:
+                    return True, True
+                
+                # Nếu không bằng 0, có thể do Step đang biến đổi trung gian chưa về đích.
+                # Rất khó check intermediate của bài rút gọn nếu không có full context.
+                # Tạm thời return False, True (Checkable nhưng sai so với GT cuối)
+                return False, True
 
-            # Nếu step có nhiều biến (3x + y = 124) mà GT chỉ có 1 giá trị -> KHÔNG THỂ CHECK
-            # Return False cho is_checkable để không tính bước này vào mẫu số
+            # --- GROUP 3: SUBSTITUTION (Step có biến, GT là hằng số) ---
+            # VD: Step: 2x = 58, GT: 29
+            if step_vars and not gt_vars:
+                # Xử lý GT nếu nó là Eq (VD: x=29 -> lấy 29)
+                target_val = gt_expr.rhs if isinstance(gt_expr, Eq) else gt_expr
+                
+                # CASE 3a: Step chỉ có 1 biến (x) -> Thay GT vào x
+                if len(step_vars) == 1:
+                    var = list(step_vars)[0] # Lấy biến duy nhất (dù là x hay y)
+                    
+                    # Thay thế
+                    substituted = step_expr.subs(var, target_val)
+                    
+                    # Kiểm tra kết quả sau thay thế
+                    if isinstance(substituted, Eq):
+                        # VD: 2(29) = 58 -> 58=58 -> True
+                        is_correct = simplify(substituted.lhs - substituted.rhs) == 0
+                        return is_correct, True
+                    else:
+                        # VD: Step là "x + 1". GT là 5. Thay vào ra 6. 
+                        # Không phải mệnh đề đúng/sai -> Không check được
+                        return False, False
+                
+                # CASE 3b: Step có nhiều biến (3x + y = 124) -> BÓ TAY
+                # Vì ta chỉ có GT cho đáp án cuối (ví dụ x), không biết y.
+                return False, False 
+
             return False, False
             
-        except:
+        except Exception as e:
+            # print(f"TSA Check Error: {e}") 
             return False, False
     
     def _calculate_ass(self, expr):
