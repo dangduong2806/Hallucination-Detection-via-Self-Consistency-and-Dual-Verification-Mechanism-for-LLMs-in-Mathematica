@@ -39,7 +39,7 @@ class ResearchPipeline:
         
         # 3. Initialize Pipeline Components
         self.sampler = AdaptiveSampler(self.llm, self.config)
-        self.local_verifier = LocalVerifier(self.config)
+        self.local_verifier = LocalVerifier(self.config, self.llm)
         self.graph_builder = ReasoningGraph() # Có chứa IsomorphismEngine bên trong
         self.struct_verifier = StructuralVerifier(self.config)
         self.selector = EntropySelector()
