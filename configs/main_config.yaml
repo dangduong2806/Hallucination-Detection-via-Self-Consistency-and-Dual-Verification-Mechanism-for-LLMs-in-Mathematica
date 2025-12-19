@@ -26,3 +26,7 @@ selection:
   
 graph:
   similarity_threshold: 0.95 # Ngưỡng để gộp 2 node vào đồ thị
+
+tool:
+  name: "microsoft/deberta-v3-base" # Model cực giỏi NLI/Classification
+  output_dir: "tools/prm_specialist_model"
