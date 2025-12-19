@@ -122,7 +122,10 @@ class LocalVerifier:
         step_len = step_ids.shape[1]
 
         # 2. Ghép lại thành input hoàn chỉnh: [Context, Step]
-        input_ids = torch.cat([context_ids, step_ids], dim=1).to(self.llm.model.device)
+        input_ids = torch.cat([context_ids, step_ids], dim=1).to(
+            device=self.llm.model.device,
+            dtype=torch.long
+        )
 
         # 3. Chạy Model (Forward pass) để lấy Logits
         with torch.no_grad():
