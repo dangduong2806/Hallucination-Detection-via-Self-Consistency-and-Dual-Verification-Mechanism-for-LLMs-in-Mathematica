@@ -82,5 +82,5 @@ def train():
     print("PRM Specialist Model trained and saved!")
 
 if __name__ == "__main__":
-    # train() # Uncomment để chạy
+    train() # Uncomment để chạy
     pass
