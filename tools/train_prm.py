@@ -17,16 +17,21 @@ class PRMDataset(Dataset):
         with open(jsonl_path, 'r') as f:
             for line in f:
                 item = json.loads(line)
-                # Giả định format PRM800K chuẩn
-                # Cần trích xuất: Context (đề bài + bước trước) và Step hiện tại
-                # Label: + (1), - (0)
-                # (Phần này bạn cần parser log PRM800K phase 2 để lấy cặp (text, label))
-                # Đây là code giả lập cấu trúc
-                if 'label' in item and item['label']['rating'] is not None:
-                     self.data.append({
-                         'text': item['context'] + " [SEP] " + item['step'],
-                         'label': 1 if item['label']['rating'] > 0 else 0
-                     })
+                problem = item['question']['problem']
+
+                for step in item['label']['steps']:
+                    for comp in step['completions']:
+                        if comp['rating'] is None:
+                            continue
+
+                        text = problem + " [SEP] " + comp["text"]
+                        label = 1 if comp["rating"] > 0 else 0
+
+                        self.data.append({
+                            'text': text,
+                            'label': label
+                        })
+        print("Loaded PRM samples:", len(self.samples))
 
     def __len__(self):
         return len(self.data)
