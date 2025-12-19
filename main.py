@@ -96,7 +96,7 @@ class ResearchPipeline:
         
         for idx, path in enumerate(raw_paths):
             # path là list các object/dict chứa text và logprobs của từng bước
-            verified_steps = self.local_verifier.verify_path(path)
+            verified_steps = self.local_verifier.verify_path(path, problem_text=problem_text)
             
             # Chỉ giữ lại các path có ít nhất 1 bước đúng
             if verified_steps:
