@@ -32,7 +32,7 @@ class LocalVerifier:
         self.logical_enabled = config['verification'].get('logical_check_enabled', True)
         self.logprob_threshold = config['verification'].get('logprob_threshold', -1.5)
 
-    def verify_path(self, path):
+    def verify_path(self, path, problem_text = ""):
         """
         Input: 
             path: List các bước (dict) từ model. 
@@ -47,7 +47,7 @@ class LocalVerifier:
         # Ở version đơn giản này, ta check từng bước độc lập dựa trên logprob và syntax.
         
         # Context bắt đầu rỗng (hoặc là prompt bài toán gốc nếu muốn chính xác hơn)
-        current_context = "" #
+        current_context = f"Problem: {problem_text}\nSolution:\n" #
         for i, step in enumerate(path):
             step_content = step.get('text', '')
             step_logprob = step.get('logprob', -float('inf'))
