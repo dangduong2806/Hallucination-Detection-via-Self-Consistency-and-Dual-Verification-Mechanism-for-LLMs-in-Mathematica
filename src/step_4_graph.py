@@ -36,7 +36,7 @@ class ReasoningGraph:
 
             for step in path:
                 step_content = step['content']
-                step_conf = step['confidence'] # log-prob score
+                step_conf = step['confidence'] # xác suất
 
                 # 1 lấy danh sách các con của node cha hiện tại
                 children_ids = list(self.graph.successors(current_parent_id))
@@ -49,7 +49,7 @@ class ReasoningGraph:
                     # Nếu đã có, tăng trọng số (Count) và cập nhật confidence
                     self.graph.nodes[matched_node_id]['count'] += 1
                     # Cộng dồn confidence để tính trung bình sau này
-                    self.graph.nodes[matched_node_id]['total_confidence'] += step_conf
+                    self.graph.nodes[matched_node_id]['total_confidence'] += step_conf # xác suất
 
                     # Cập nhật trọng số cạnh
                     if self.graph.has_edge(current_parent_id, matched_node_id):

@@ -225,4 +225,4 @@ class LocalVerifier:
         # Loss là -log(P), nên Log-Likelihood = -Loss
         avg_log_likelihood = -torch.mean(step_token_losses).item()
 
-        return avg_log_likelihood
+        return avg_log_likelihood # Giá trị log-prob

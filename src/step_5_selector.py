@@ -31,7 +31,7 @@ class EntropySelector:
             content = graph.nodes[node].get('content', '')
             # Lấy điểm số đã được tính từ bước Structural Verification
             # Đây chính là thành phần cốt lõi của công thức SC(global)
-            score = graph.nodes[node].get('final_score', 0.0)
+            score = graph.nodes[node].get('final_score', 0.0) # score là trung bình xác suất
 
             # Kiểm tra xem đáp án này đã có trong cluster nào chưa
             found_cluster = False

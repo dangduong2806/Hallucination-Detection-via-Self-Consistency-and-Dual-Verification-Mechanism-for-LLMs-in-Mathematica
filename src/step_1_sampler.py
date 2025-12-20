@@ -28,7 +28,7 @@ class AdaptiveSampler:
 
         for text, conf in initial_batch:
             # Parse text thành cấu trúc steps cho bước sau
-            steps = self._parse_text_to_steps(text, conf)
+            steps = self._parse_text_to_steps(text, conf) # conf là log-prob
             all_paths_data.append(steps)
 
             # Trích xuất đán áp để vote
@@ -73,7 +73,7 @@ class AdaptiveSampler:
         
         return all_paths_data
 
-    def _parse_text_to_steps(self, text, path_confidene):
+    def _parse_text_to_steps(self, text, path_confidene): # path_confidence là log-prob
         """
         Helper: Chuyển văn bản thô thành danh sách các bước (Atomic Steps).
         Gán logprob giả định (hoặc thật nếu model hỗ trợ) cho từng bước.
@@ -84,8 +84,8 @@ class AdaptiveSampler:
         # Tính logprob từ confidence (score 0-1)
         # log(prob). Nếu prob ~ 0 thì gán giá trị rất nhỏ.
         safe_conf = max(path_confidene, 1e-10)
-        path_logprob = np.log(safe_conf)
-
+        # path_logprob = np.log(safe_conf)
+        path_logprob = safe_conf
         for line in lines:
             # Lọc các dòng rác (Header/Footer của model)
             if any(k in line.lower() for k in ["solution:", "answer:", "###", "step-by-step"]):
@@ -94,7 +94,7 @@ class AdaptiveSampler:
             steps.append({
                 'text': line,
                 'logprob': path_logprob, # Tạm dùng path score cho step (đơn giản hóa)
-                'confidence': safe_conf
+                'confidence': safe_conf # Giá trị log-prob
             })
         return steps
 

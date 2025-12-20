@@ -81,7 +81,7 @@ class StructuralVerifier:
             # c. Tính Final Score (Pha trộn)
             # Công thức: Final = (1 - alpha) * Local + alpha * Global
             alpha = self.centrality_weight
-            final_score = (1 - alpha) * local_score + alpha * global_score
+            final_score = (1 - alpha) * local_score + alpha * global_score # local_score là trung bình xác suất
             
             # Lưu lại vào graph để dùng cho bước Selection
             graph.nodes[node]['final_score'] = final_score
