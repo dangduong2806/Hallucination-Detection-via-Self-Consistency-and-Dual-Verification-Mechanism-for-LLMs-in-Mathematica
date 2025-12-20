@@ -79,7 +79,7 @@ def train():
         output_dir=OUTPUT_DIR,
         num_train_epochs=3,
         per_device_train_batch_size=8,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=2e-5,
         fp16=True # Tiết kiệm VRAM
