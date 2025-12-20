@@ -17,6 +17,11 @@ verification:
   atomic_check_enabled: True
   logical_check_enabled: True
   logprob_threshold: -1.5
+  atomic_check_enabled: True
+  # Check 2: Adversarial (self-correction)
+  adversarial_enabled: True
+  # Check 3: External PRM (The "New" Improvement)
+  prm_check_enbled: True 
 
 structural:
   centrality_weight: 0.5
@@ -30,3 +35,4 @@ graph:
 tool:
   name1: "microsoft/deberta-v3-base" # Model cực giỏi NLI/Classification
   output_dir1: "tools/prm_specialist_deberta-v3-base"
+
