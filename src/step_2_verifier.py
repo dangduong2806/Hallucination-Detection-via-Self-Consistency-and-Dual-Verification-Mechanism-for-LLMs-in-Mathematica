@@ -99,6 +99,8 @@ class LocalVerifier:
 
             if not is_valid_step:
                 break
+            
+            logger.info(f"Qua được vòng kiểm tra của 2 model thành công")
 
             # Nếu qua được cả 2 vòng check thì thêm vào danh sách hợp lệ
             verified_steps.append({
