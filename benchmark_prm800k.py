@@ -74,7 +74,7 @@ def run_benchmark():
             pred = result['final_answer']
             best_path_text = result['final_path_content']
 
-            metrics = math_eval.compute_all_metrics(
+            metrics = math_eval.compute_metrics(
                 generated_path_text = best_path_text,
                 label_data = item
             )
@@ -96,7 +96,10 @@ def run_benchmark():
             }
             results.append(record)
         except Exception as e:
-            print("❌ Failed to generate a valid answer.")
+            print(f"❌ Failed to generate a valid answer for problem: {problem[:30]}...")
+            print(f"Error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
             
     # 3. Aggregation (Tính trung bình)
     df = pd.DataFrame(results)
@@ -117,7 +120,3 @@ def run_benchmark():
 
 if __name__ == "__main__":
     run_benchmark()
-
-            
-
-
