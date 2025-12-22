@@ -24,7 +24,8 @@ class LocalVerifier:
             logger.info(f"Loading PRM Specialist from {prm_path}...")
             # Load lên cùng device với LLM hoặc device phụ
             self.prm_tokenizer = AutoTokenizer.from_pretrained(prm_path)
-            self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to("cuda")
+            self.prm_device = "cpu"
+            self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to(self.prm_device)
             self.prm_model.eval()
 
         # KHỞI TẠO CACHE TOÀN CỤC
@@ -162,7 +163,7 @@ class LocalVerifier:
             return_tensors="pt", 
             truncation=True, 
             max_length=512
-        ).to(self.prm_model.device)
+        ).to(self.prm_device)
         with torch.no_grad():
             outputs = self.prm_model(**inputs)
             # Softmax để lấy xác suất lớp 1 (Lớp "Correct")
