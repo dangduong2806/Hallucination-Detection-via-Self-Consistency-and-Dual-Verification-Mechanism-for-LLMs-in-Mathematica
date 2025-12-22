@@ -1,26 +1,11 @@
 import numpy as np
 from sympy import sympify, SympifyError
 import torch
+import hashlib
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import logging
 logger = logging.getLogger(__name__)
 class LocalVerifier:
-    # def verify_step(self, context, step_content, step_logprob):
-    #     """
-    #     Kết hợp Atomic và Logical check.
-    #     """
-    #     # 1. Atomic Check (SymPy): Bước này có vô lý về toán học không?
-    #     # Ví dụ: "1 + 1 = 3" -> Atomic Error
-    #     atomic_score = self.sympy_check(step_content)
-    #     # 2. Logical Dependency (Model Confidence):
-    #     # Model có chắc chắn bước này suy ra từ context không?
-    #     # Dùng logprob (xác suất) làm thước đo dependency.
-    #     logical_score = np.exp(step_logprob)  # Chuyển logprob về prob bình thường
-
-    #     # Kết hợp hai thước đo
-    #     final_score = atomic_score * logical_score
-    #     return final_score
-
     def __init__(self, config, llm_engine):
         """
         Khởi tạo Verifier với các cấu hình ngưỡng (thresholds).
@@ -41,6 +26,12 @@ class LocalVerifier:
             self.prm_tokenizer = AutoTokenizer.from_pretrained(prm_path)
             self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to("cuda")
             self.prm_model.eval()
+
+        # KHỞI TẠO CACHE TOÀN CỤC
+        # Cấu trúc: { "hash_string": { 'score': float, 'prm_score': float, 'is_valid': bool } }
+        self.verification_cache = {}
+        self.cache_hits = 0
+        self.total_checks = 0
 
     def verify_path(self, path, problem_text = ""):
         """
@@ -68,36 +59,57 @@ class LocalVerifier:
                 if not self._check_atomic_validity(step_content):
                     # Nếu bước này viết sai cú pháp toán học (vd: "x + = 2") -> Dừng ngay
                     break 
-
-            # ---------------------------------------------------
-            # 2. LOGICAL DEPENDENCY CHECK (Conditional Probability)
-            # ---------------------------------------------------
-            # Công thức: Score = P(Step_k | Context)
-            # Bỏ qua bước 1 nếu muốn (vì nó phụ thuộc đề bài, chưa có context)
-            # Nhưng tốt nhất vẫn nên tính để xem nó có khớp với tri thức nội tại ko
-
-            logic_score = self._compute_step_score(current_context, step_content)
-            # Log debug để bạn tune threshold
-            logger.info(f"Step {i+1}: {step_content[:20]}... | Score: {logic_score:.4f}")
-            if logic_score < self.logprob_threshold:
-                logger.debug(f"Step {i+1} failed LOGICAL check. Score {logic_score:.4f} < {self.logprob_threshold}")
-                break # Cắt nhánh (Pruning)
             
-            is_valid_step = True
-            # 3a. Adversarial Check (Hỏi vặn)
-            if self.config['verification'].get('adversarial_enabled', False):
-                if not self._adversarial_check(current_context, step_content):
-                    logger.warning(f"Step {i+1} FAIL: Adversarial Critic rejected.")
-                    is_valid_step = False
-            # 3b. PRM Specialist Check (Model chuyên gia)
-            if is_valid_step and self.prm_enabled:
-                prm_prob = self._prm_check(current_context, step_content)
-                # Ngưỡng PRM (VD: > 0.5 là đúng)
-                if prm_prob < 0.5: 
-                    logger.warning(f"Step {i+1} FAIL: PRM Model rejected (Prob {prm_prob:.4f}).")
-                    is_valid_step = False
+            # KIỂM TRA CACHE TRƯỚC KHI TÍNH TOÁN NẶNG
+            # Tạo hash key dựa trên (Context + Step) để đảm bảo tính duy nhất
+            cache_key = self._generate_hash(current_context, step_content)
+            self.total_checks += 1
+            cached_result = self.verification_cache.get(cache_key)
+            if cached_result:
+                # CACHE HIT: Lấy kết quả ngay lập tức
+                self.cache_hits += 1
+                logic_score = cached_result['logic_score']
+                prm_prob = cached_result['prm_score']
+                is_valid_step = cached_result['is_valid']
+                logger.info(f"Bước này đã xuất hiện Cache HIT để tiết kiệm bộ nhớ")
+            else:
+                # CACHE MISS: Phải tính toán (Heavy Computation)
+                # ---------------------------------------------------
+                # 2. LOGICAL DEPENDENCY CHECK (Conditional Probability)
+                # ---------------------------------------------------
+                # Công thức: Score = P(Step_k | Context)
+                # Bỏ qua bước 1 nếu muốn (vì nó phụ thuộc đề bài, chưa có context)
+                # Nhưng tốt nhất vẫn nên tính để xem nó có khớp với tri thức nội tại ko
+
+                logic_score = self._compute_step_score(current_context, step_content)
+                # Log debug để bạn tune threshold
+                logger.info(f"Step {i+1}: {step_content[:20]}... | Score: {logic_score:.4f}")
+                if logic_score < self.logprob_threshold:
+                    logger.debug(f"Step {i+1} failed LOGICAL check. Score {logic_score:.4f} < {self.logprob_threshold}")
+                    break # Cắt nhánh (Pruning)
+                
+                is_valid_step = True
+                # 3a. Adversarial Check (Hỏi vặn)
+                if self.config['verification'].get('adversarial_enabled', False):
+                    if not self._adversarial_check(current_context, step_content):
+                        logger.warning(f"Step {i+1} FAIL: Adversarial Critic rejected.")
+                        is_valid_step = False
+                # 3b. PRM Specialist Check (Model chuyên gia)
+                if is_valid_step and self.prm_enabled:
+                    prm_prob = self._prm_check(current_context, step_content)
+                    # Ngưỡng PRM (VD: > 0.5 là đúng)
+                    if prm_prob < 0.5: 
+                        logger.warning(f"Step {i+1} FAIL: PRM Model rejected (Prob {prm_prob:.4f}).")
+                        is_valid_step = False
+                
+                self.verification_cache[cache_key] = {
+                    'logic_score': logic_score,
+                    'prm_score': prm_prob,
+                    'is_valid': is_valid_step
+                }
 
             if not is_valid_step:
+                logger.debug(f"Step {i+1} Rejected.")
                 break
             
             logger.info(f"Qua được vòng kiểm tra của 2 model thành công")
@@ -112,6 +124,19 @@ class LocalVerifier:
             current_context += step_content + "\n"
             
         return verified_steps
+    
+    def _generate_hash(self, context, step):
+        """
+        Tạo mã băm MD5 cho cặp context và step.
+        Chuẩn hóa chuỗi (lower, strip space) để tăng tỉ lệ cache hit.
+        """
+        # Chỉ lấy 500 ký tự cuối của context để hash (vì context quá dài model cũng ko nhớ hết)
+        # Điều này giúp tăng khả năng cache hit nếu phần đầu context khác nhau chút xíu
+        relevant_context = context[-500:].strip().lower()
+        clean_step = step.strip().lower()
+
+        raw_string = f"{relevant_context}|{clean_step}"
+        return hashlib.md5(raw_string.encode('utf-8')).hexdigest()
     
     def _adversarial_check(self, context, step_text):
         """Dùng chính LLM để đóng vai 'Strict Grader'"""
