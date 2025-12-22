@@ -95,6 +95,9 @@ class LocalVerifier:
                     if not self._adversarial_check(current_context, step_content):
                         logger.warning(f"Step {i+1} FAIL: Adversarial Critic rejected.")
                         is_valid_step = False
+                    else:
+                        logger.warning(f"Step {i+1} Success: Adversarial Critic accepted.")
+
                 # 3b. PRM Specialist Check (Model chuyên gia)
                 if is_valid_step and self.prm_enabled:
                     prm_prob = self._prm_check(current_context, step_content)
@@ -165,16 +168,22 @@ class LocalVerifier:
             logger.info(f"Adversarial Reasoning: {response}") 
 
             # Chỉ chấp nhận nếu model chốt hạ là YES
-            if "VERIFICATION: YES" in response:
+            if "VERIFICATION: YES" in response[0][0]:
                 return True
-            elif "VERIFICATION: NO" in response:
+            elif "VERIFICATION: NO" in response[0][0]:
                 return False
             else:
                 # Trường hợp model lan man không chốt (Fallback)
                 # Với strict mode thì reject, nhưng giai đoạn đầu nên accept để tránh false positive
+                logger.warning(f"Adversarial đang lan ma => trả về True")
                 return True
-        except:
-            return True
+        except Exception as e:
+            # --- [SỬA ĐOẠN NÀY] ---
+            # In lỗi ra để biết tại sao nó không chạy dòng log trên
+            logger.error(f"❌ Lỗi trong _adversarial_check: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return True # Fallback vẫn là True
         
     def _prm_check(self, context, step_text):
         """Dùng Model PRM chuyên biệt để chấm điểm"""
