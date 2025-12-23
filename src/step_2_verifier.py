@@ -24,9 +24,19 @@ class LocalVerifier:
             logger.info(f"Loading PRM Specialist from {prm_path}...")
             # Load lên cùng device với LLM hoặc device phụ
             self.prm_tokenizer = AutoTokenizer.from_pretrained(prm_path)
-            self.prm_device = "cpu"
-            self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to(self.prm_device)
-            self.prm_model.eval()
+            self.prm_device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            try:
+                self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to(self.prm_device)
+                self.prm_model.eval()
+                # Ép kiểu half precision (fp16) để chạy nhanh hơn và tốn ít VRAM hơn trên GPU
+                if self.prm_device == "cuda":
+                    self.prm_model.half()
+            except Exception as e:
+                logger.warning(f"Không load được PRM lên GPU, chuyển về CPU. Lỗi: {e}")
+                self.prm_device = "cpu"
+                self.prm_model = AutoModelForSequenceClassification.from_pretrained(prm_path).to(self.prm_device)
+                self.prm_model.eval()
 
         # KHỞI TẠO CACHE TOÀN CỤC
         # Cấu trúc: { "hash_string": { 'score': float, 'prm_score': float, 'is_valid': bool } }
@@ -197,7 +207,9 @@ class LocalVerifier:
     def _prm_check(self, context, step_text):
         """Dùng Model PRM chuyên biệt để chấm điểm"""
         # Format input cho Cross-Encoder: [CLS] Context [SEP] Step [SEP]
-        input_text = f"{context} [SEP] {step_text}"
+        sep_token = self.prm_tokenizer.sep_token if self.prm_tokenizer.sep_token else " [SEP] "
+        input_text = f"{context} {sep_token} {step_text}"
+        
         inputs = self.prm_tokenizer(
             input_text, 
             return_tensors="pt", 
@@ -208,8 +220,13 @@ class LocalVerifier:
             outputs = self.prm_model(**inputs)
             # Softmax để lấy xác suất lớp 1 (Lớp "Correct")
             probs = torch.softmax(outputs.logits, dim=-1)
-            score_correct = probs[0][1].item()
-        
+
+            # probs[0][0] = Bad
+            # probs[0][1] = Neutral
+            # probs[0][2] = Good
+            
+            # Logic: Điểm = Xác suất Tốt (Có thể trừ xác suất Xấu nếu muốn gắt hơn)
+            score_correct = probs[0][2].item()        
         return score_correct
 
 
