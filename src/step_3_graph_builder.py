@@ -26,9 +26,28 @@ class IsomorphismEngine:
                 # Kiểm tra hiệu số: expr1 - expr2 == 0 ?
                 # simplify() là hàm mạnh nhất của sympy để rút gọn
                 diff = simplify(expr1 - expr2)
+                # ✅ FIX: Kiểm tra diff có phải số 0 hay không
+                # Có 3 trường hợp:
+                # 1. diff == 0 (số 0)
+                # 2. diff == S(0) (SymPy zero)
+                # 3. diff là biểu thức số nhỏ < 1e-10
                 if diff == 0:
                     return True
-            except Exception:
+                
+                # Nếu diff là số thực, kiểm tra giá trị tuyệt đối
+                try:
+                    diff_value = float(diff)
+                    if abs(diff_value) < 1e-10:
+                        return True
+                except (TypeError, ValueError):
+                    # diff là biểu thức SymPy chứ không phải số
+                    # Ví dụ: diff = x - 1 (không thể so sánh với số)
+                    pass
+                
+            except Exception as e:
+                print(f"Error details: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 pass # Nếu lỗi tính toán, fallback xuống so sánh text
         return False
 
@@ -59,6 +78,9 @@ class IsomorphismEngine:
             # 3. Nếu không có dấu "=", parse bình thường
             return self._safe_parse(clean_text)
         except Exception as e:
+            print(f"Error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     def _safe_parse(self, expr_text):
         """
@@ -66,14 +88,17 @@ class IsomorphismEngine:
         """
         try:
             # Xử lý các ký hiệu LaTeX cơ bản thường gặp
-            str_expr = str_expr.replace("^", "**") # Python dùng ** cho lũy thừa
+            str_expr = expr_text.replace("^", "**") # Python dùng ** cho lũy thừa
             str_expr = str_expr.replace("\\frac", "frac") # Bỏ backslash
             str_expr = re.sub(r'\\boxed\{(.*?)\}', r'\1', str_expr) # Lấy nội dung trong boxed
 
             # Lọc bỏ các ký tự lạ không phải toán học (chữ cái text)
             # Bước này tricky, ở mức đơn giản ta cứ thử parse
             return sympify(str_expr)
-        except (SyntaxError):
+        except Exception as e:
+            print(f"Error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
 if __name__ == "__main__":
