@@ -19,7 +19,7 @@ class LLMEngine:
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    def generate(self, prompt, num_return_sequences=1, temperature=0.7):
+    def generate(self, prompt, num_return_sequences=1, temperature=0.7, max_new_tokens=512):
         """
         Sinh văn bản và trả về kèm độ tự tin (Confidence Score).
         Input:
@@ -37,7 +37,7 @@ class LLMEngine:
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
-                max_new_tokens=512,         # Độ dài tối đa của câu trả lời
+                max_new_tokens=max_new_tokens,         # Độ dài tối đa của câu trả lời
                 do_sample=True,             # Bắt buộc True để sinh đa dạng (cho Adaptive Sampling)
                 temperature=temperature,
                 top_k=40,                   # Lấy top 40 token tốt nhất
