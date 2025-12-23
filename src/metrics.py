@@ -158,15 +158,17 @@ class DeepMathMetrics:
 
             # Cách 2: Symbolic Equivalence (Fallback cho bài toán rút gọn)
             # VD: Model "x+x", Golden "2x"
-            if not isinstance(model_final_expr, Eq) and not isinstance(golden_final_expr, Eq):
-                diff = simplify(model_final_expr - golden_final_expr) # Lưu ý: nếu là Eq thì cần xử lý lhs-rhs
-                if diff == 0: return 1.0
-
-            # Nếu là Eq, chuyển thành biểu thức lhs - rhs trước khi so sánh
-            if isinstance(model_final_expr, Eq) and isinstance(golden_final_expr, Eq):
-                diff = simplify((model_final_expr.lhs - model_final_expr.rhs) - (golden_final_expr.lhs-golden_final_expr.rhs))
-                if diff == 0:
-                    return 1.0
+            # Helper: Chuyển Eq thành biểu thức
+            def _to_expr(e):
+                return (e.lhs - e.rhs) if isinstance(e, Eq) else e
+            
+            model_expr = _to_expr(model_final_expr)
+            golden_expr = _to_expr(golden_final_expr)
+            
+            diff = simplify(model_expr - golden_expr)
+            if diff == 0:
+                return 1.0
+            
         except Exception as e:
             print(f"Error details: {str(e)}")
             import traceback
@@ -180,6 +182,7 @@ class DeepMathMetrics:
         Algebraic Simplification Score (ASS):
         Đo lường mức độ tối giản. 
         Nếu biểu thức của model (generated) phức tạp hơn dạng canonical -> điểm thấp.
+        Phạt các bước "verbose" hoặc không cần thiết.
         """
         try:
             if expr is None: return 0.0
@@ -199,13 +202,60 @@ class DeepMathMetrics:
                 return 1.0
             
             # Nếu dài dòng hơn, phạt điểm
-            # Công thức: 1 - (phần thừa / phần gốc)
-            return max(0.0, 1.0 - (ops_generated - ops_canonical) / (ops_generated + 1e-6))
+            # Nếu dài dòng, phạt theo mức độ:
+            # dài dòng 20% → 0.8
+            # dài dòng 50% → 0.5
+            # dài dòng 100% → 0.0
+            complexity_ratio = (ops_generated - ops_canonical) / (ops_canonical + 1e-6)
+            # ✅ Sử dụng exponential penalty thay vì linear
+            ass_score = 1.0 / (1.0 + complexity_ratio)  # Sigmoid-like
+            
+            return max(0.0, ass_score)
+
         except Exception as e:
             print(f"Error details: {str(e)}")
             import traceback
             traceback.print_exc()
             return 0.0
+    
+    def _check_step_logic(self, gen_exprs, golden_exprs):
+        """
+        Kiểm tra logic của chuỗi bước.
+        
+        Ví dụ bad logic:
+        - "x = 5" rồi "2x = 10" (đảo ngược)
+        - "x = 5" rồi "x = 3" (mâu thuẫn)
+        """
+        if len(gen_exprs) < 2:
+            return 1.0  # Chỉ 1 bước thì ok
+        
+        # Lấy solution của mỗi bước
+        step_solutions = []
+        for step in gen_exprs:
+            sols = self._get_solution_set(step)
+            step_solutions.append(sols)
+        
+        # Kiểm tra không có mâu thuẫn
+        for i in range(len(step_solutions) - 1):
+            curr_sols = step_solutions[i]
+            next_sols = step_solutions[i + 1]
+            
+            if curr_sols and next_sols:
+                # Kiểm tra: Các solutions có tương thích không?
+                compatible = False
+                for c in curr_sols:
+                    for n in next_sols:
+                        try:
+                            if abs(float(c) - float(n)) < 1e-6:
+                                compatible = True
+                                break
+                        except: pass
+                    if compatible: break
+                
+                if not compatible:
+                    return 0.5  # ← Phạt nếu có mâu thuẫn logic
+        
+        return 1.0
     
     def _check_tsa_step(self, step_expr, gt_final_expr, golden_exprs):
         """
@@ -225,7 +275,7 @@ class DeepMathMetrics:
                  for s in step_sols:
                     for t in target_sols:
                         try:
-                            if abs(float(s) - float(t)) < 1e-7:
+                            if abs(float(s) - float(t)) < 1e-8:
                                 return True # Có khớp
                         except: pass
         return False
@@ -288,9 +338,12 @@ class DeepMathMetrics:
         ass_scores = [self._calculate_ass(step) for step in gen_exprs]
         ass_score = sum(ass_scores) / len(ass_scores) if ass_scores else 0.0
 
+        # Thêm logic check
+        logic_score = self._check_step_logic(gen_exprs, golden_exprs)
+
         return {
-            "EE": ee_score,
-            "TSA": tsa_score,
-            "ASS": ass_score,
+            "EE": ee_score * logic_score,
+            "TSA": tsa_score * logic_score,
+            "ASS": ass_score * logic_score,
             "num_steps": len(gen_exprs)
         }
