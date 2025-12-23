@@ -72,7 +72,9 @@ class LocalVerifier:
                 logic_score = cached_result['logic_score']
                 prm_prob = cached_result['prm_score']
                 is_valid_step = cached_result['is_valid']
+                logger.info(f"---------------------------------------------")
                 logger.info(f"Bước này đã xuất hiện Cache HIT để tiết kiệm bộ nhớ")
+                logger.info(f"---------------------------------------------")
             else:
                 # CACHE MISS: Phải tính toán (Heavy Computation)
                 # ---------------------------------------------------
@@ -118,7 +120,9 @@ class LocalVerifier:
                 logger.debug(f"Step {i+1} Rejected.")
                 break
             
+            logger.info(f"---------------------------------------------")
             logger.info(f"Qua được vòng kiểm tra của 2 model thành công")
+            logger.info(f"---------------------------------------------")
 
             # Nếu qua được cả 2 vòng check thì thêm vào danh sách hợp lệ
             verified_steps.append({
@@ -147,16 +151,17 @@ class LocalVerifier:
     def _adversarial_check(self, context, step_text):
         """
         Dùng chính LLM để đóng vai 'Strict Grader'
-        Cập nhật: Yêu cầu giải thích (CoT) trước khi đưa ra phán quyết YES/NO.
-        """
+        Cập nhật: Yêu cầu giải thích (CoT) trước khi đưa ra phán quyết YES/NO.\
+        """        
         prompt = (
             f"Context:\n{context[-1000:]}\n" # Lấy context dài hơn
             f"Step to evaluate: {step_text}\n\n"
-            "You are a strict math grader. Perform the following actions:\n"
+            "You are a strict math grader. You do NOT solve the problem." 
+            "You only check the logic. Perform the following actions:\n"
             "1. Analyze the logic and calculation of the step explicitly.\n"
             "2. Check for any sign error, arithmetic error, or logical gap.\n"
             "3. Conclude with exactly 'VERIFICATION: YES' if correct, or 'VERIFICATION: NO' if incorrect.\n"
-            "4. Answer concise. End your response immediately after writing 'VERIFICATION: YES' or 'VERIFICATION: NO'. Do not repeat\n\n"
+            "4. Answer concise. End your response immediately after writing 'VERIFICATION: YES' or 'VERIFICATION: NO'. Do not repeat. Do not write 'Final Answer'\n\n"
             "Analysis:"
         )
         try:
@@ -175,12 +180,16 @@ class LocalVerifier:
             else:
                 # Trường hợp model lan man không chốt (Fallback)
                 # Với strict mode thì reject, nhưng giai đoạn đầu nên accept để tránh false positive
+                logger.info(f"---------------------------------------------")
                 logger.warning(f"Adversarial đang lan man => trả về True")
+                logger.info(f"---------------------------------------------")
                 return True
         except Exception as e:
             # --- [SỬA ĐOẠN NÀY] ---
             # In lỗi ra để biết tại sao nó không chạy dòng log trên
+            logger.info(f"-----------------------------------------")
             logger.error(f"❌ Lỗi trong _adversarial_check: {str(e)}")
+            logger.info(f"---------------------------------------------")
             import traceback
             logger.error(traceback.format_exc())
             return True # Fallback vẫn là True
