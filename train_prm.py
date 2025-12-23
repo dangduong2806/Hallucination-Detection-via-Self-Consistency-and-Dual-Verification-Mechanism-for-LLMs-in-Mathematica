@@ -106,7 +106,7 @@ class PRMDataset(Dataset):
         print(f"🎉 Sẵn sàng train! Tổng số mẫu: {len(self.tokenized_data)}")
 
     def __len__(self):
-        return len(self.data)
+        return len(self.tokenized_data)
 
     # def __getitem__(self, idx):
     #     item = self.data[idx]
