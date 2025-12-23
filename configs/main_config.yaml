@@ -34,5 +34,5 @@ graph:
 
 tool:
   name1: "microsoft/deberta-v3-large" # Model cực giỏi NLI/Classification
-  output_dir1: "tools/prm_specialist_deberta-v3-large"
+  output_dir1: "tools/prm_specialist_deberta-v3-base"
 
