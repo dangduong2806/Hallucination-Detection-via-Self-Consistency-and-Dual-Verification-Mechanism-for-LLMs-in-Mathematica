@@ -119,7 +119,7 @@ class LocalVerifier:
             if not is_valid_step:
                 logger.debug(f"Step {i+1} Rejected.")
                 break
-            
+
             logger.info(f"---------------------------------------------")
             logger.info(f"Qua được vòng kiểm tra của 2 model thành công")
             logger.info(f"---------------------------------------------")
@@ -170,7 +170,7 @@ class LocalVerifier:
             # Ở đây tôi giả định generate_short có thể chỉnh max_new_tokens hoặc bạn dùng hàm generate thường.
             response = self.llm.generate(prompt, max_new_tokens=256)[0][0].strip()
             # Log lại lý do để debug (Rất quan trọng!)
-            logger.info(f"Adversarial Reasoning: {response}") 
+            # logger.info(f"Adversarial Reasoning: {response}") 
 
             # Chỉ chấp nhận nếu model chốt hạ là YES
             if "VERIFICATION: YES" in response:
