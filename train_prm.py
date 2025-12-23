@@ -141,13 +141,13 @@ def train():
     # 5. Training Arguments
     args = TrainingArguments(
         output_dir=OUTPUT_DIR,
-        num_train_epochs=3,              # DeBERTa cần train kỹ hơn chút (3-5 epochs)
-        per_device_train_batch_size=2,   # 4 hoặc 8 tùy VRAM (4 là an toàn cho GPU 8-12GB)
-        per_device_eval_batch_size=2,
-        gradient_accumulation_steps=8,   # Tích lũy gradient để batch size thực tế = 16
+        num_train_epochs=4,              # DeBERTa cần train kỹ hơn chút (3-5 epochs)
+        per_device_train_batch_size=8,   # 4 hoặc 8 tùy VRAM (4 là an toàn cho GPU 8-12GB)
+        per_device_eval_batch_size=8,
+        gradient_accumulation_steps=4,   # Tích lũy gradient để batch size thực tế = 16
         gradient_checkpointing=True,     # <--- CỰC KỲ QUAN TRỌNG: Tiết kiệm 50-70% VRAM (Đổi lại tốc độ train sẽ chậm hơn khoảng 20%)
         gradient_checkpointing_kwargs={"use_reentrant": False}, # <--- THÊM DÒNG NÀY (Thuốc đặc trị)
-        learning_rate=2e-5,              # QUAN TRỌNG: LR thấp cho DeBERTa
+        learning_rate=3e-5,              # QUAN TRỌNG: LR thấp cho DeBERTa
         weight_decay=0.01,
         warmup_ratio=0.1,                # Warmup giúp ổn định training đầu
         lr_scheduler_type="cosine",      # <--- QUAN TRỌNG: Giảm LR theo hình Cosine (tốt hơn Linear)
