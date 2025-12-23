@@ -155,15 +155,15 @@ class LocalVerifier:
             "You are a strict math grader. Perform the following actions:\n"
             "1. Analyze the logic and calculation of the step explicitly.\n"
             "2. Check for any sign error, arithmetic error, or logical gap.\n"
-            "3. Conclude with exactly 'VERIFICATION: YES' if correct, or 'VERIFICATION: NO' if incorrect.\n\n"
+            "3. Conclude with exactly 'VERIFICATION: YES' if correct, or 'VERIFICATION: NO' if incorrect.\n"
+            "4. Answer concise. End your response immediately after writing 'VERIFICATION: YES' or 'VERIFICATION: NO'. Do not repeat\n\n"
             "Analysis:"
         )
         try:
             # LƯU Ý: Cần generate dài hơn vì model phải giải thích. 
             # Nếu hàm generate_short giới hạn token quá ít (vd < 50), bạn cần tăng lên (vd: 256).
             # Ở đây tôi giả định generate_short có thể chỉnh max_new_tokens hoặc bạn dùng hàm generate thường.
-            response = self.llm.generate(prompt)[0][0].strip()
-            
+            response = self.llm.generate(prompt, max_new_tokens=256)[0][0].strip()
             # Log lại lý do để debug (Rất quan trọng!)
             logger.info(f"Adversarial Reasoning: {response}") 
 
