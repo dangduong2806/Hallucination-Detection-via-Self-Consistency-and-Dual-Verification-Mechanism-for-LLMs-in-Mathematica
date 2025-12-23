@@ -80,13 +80,13 @@ class PRMDataset(Dataset):
         encoding = self.tokenizer(
             item['text'],
             truncation=True,
-            padding="max_length",
-            # max_length=self.max_len,
+            max_length=self.max_len,
+            # padding="max_length",
             # return_tensors="pt"
         )
         return {
             "input_ids": encoding["input_ids"],
-            "attention_mask": encoding["attention_mask"].flatten(),
+            "attention_mask": encoding["attention_mask"],
             # "labels": torch.tensor(item['label'], dtype=torch.long)
             "labels": item['label']
         }
