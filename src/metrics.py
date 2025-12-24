@@ -282,7 +282,7 @@ class DeepMathMetrics:
 
         return 0.1 # Nếu trượt hết các check -> Logic sai
     
-    def check_step_logic(self, gen_exprs, golden_exprs):
+    def _check_step_logic(self, gen_exprs, golden_exprs):
         """
         Tính điểm logic dựa trên chuỗi các biểu thức đã parse.
         Input:
