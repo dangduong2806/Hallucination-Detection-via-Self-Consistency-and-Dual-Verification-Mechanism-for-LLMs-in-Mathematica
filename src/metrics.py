@@ -218,44 +218,139 @@ class DeepMathMetrics:
             traceback.print_exc()
             return 0.0
     
-    def _check_step_logic(self, gen_exprs, golden_exprs):
+
+    def _verify_transition(self, expr_prev, expr_curr):
         """
-        Kiểm tra logic của chuỗi bước.
-        
-        Ví dụ bad logic:
-        - "x = 5" rồi "2x = 10" (đảo ngược)
-        - "x = 5" rồi "x = 3" (mâu thuẫn)
+        Kiểm tra logic giữa 2 biểu thức SymPy liền kề (A -> B).
+        Logic 3 lớp: Equivalence -> Implication -> Subset.
         """
-        if len(gen_exprs) < 2:
-            return 1.0  # Chỉ 1 bước thì ok
-        
-        # Lấy solution của mỗi bước
-        step_solutions = []
-        for step in gen_exprs:
-            sols = self._get_solution_set(step)
-            step_solutions.append(sols)
-        
-        # Kiểm tra không có mâu thuẫn
-        for i in range(len(step_solutions) - 1):
-            curr_sols = step_solutions[i]
-            next_sols = step_solutions[i + 1]
+        try:
+            # --- CHECK 1: EQUIVALENCE (Tương đương đại số) ---
+            # A tương đương B nếu simplify(A - B) == 0
+            diff = simplify(expr_prev - expr_curr)
+            if diff == 0:
+                return 1.0
             
-            if curr_sols and next_sols:
-                # Kiểm tra: Các solutions có tương thích không?
-                compatible = False
-                for c in curr_sols:
-                    for n in next_sols:
-                        try:
-                            if abs(float(c) - float(n)) < 1e-6:
-                                compatible = True
-                                break
-                        except: pass
-                    if compatible: break
+            # --- CHECK 2: IMPLICATION (Quan hệ kéo theo A => B) ---
+            # Giải A tìm nghiệm, thay vào B.
+            free_symbols = list(expr_prev.free_symbols)
+            
+            # Chỉ áp dụng nếu biểu thức đơn giản (1 biến) để tránh treo máy
+            if len(free_symbols) == 1:
+                variable = free_symbols[0]
                 
-                if not compatible:
-                    return 0.5  # ← Phạt nếu có mâu thuẫn logic
+                # Giải phương trình bước trước
+                try:
+                    solutions_prev = solve(expr_prev, variable)
+                except:
+                    solutions_prev = []
+
+                if solutions_prev:
+                    all_implied = True
+                    for sol in solutions_prev:
+                        # Thay nghiệm A vào biểu thức B
+                        try:
+                            check_val = expr_curr.subs(variable, sol)
+                            # Kiểm tra xem thay vào có ra 0 không (hoặc xấp xỉ 0)
+                            if simplify(check_val) != 0:
+                                # Check sai số float (nếu có)
+                                if abs(float(check_val)) > 1e-9:
+                                    all_implied = False
+                                    break
+                        except:
+                            all_implied = False
+                            break
+                    
+                    if all_implied:
+                        return 1.0 # Logic đúng chiều (A => B)
+
+                # --- CHECK 3: SUBSET (Tập con nghiệm) ---
+                # Logic đúng nếu: Tập nghiệm A là TẬP CON của tập nghiệm B
+                try:
+                    sols_curr = solve(expr_curr, variable)
+                    # Chuyển về set số phức để so sánh (tránh lỗi định dạng)
+                    set_prev = set([complex(s) for s in solutions_prev]) 
+                    set_curr = set([complex(s) for s in sols_curr])
+                    
+                    if set_prev.issubset(set_curr) and len(set_prev) > 0:
+                        return 1.0
+                except:
+                    pass
+
+        except Exception:
+            pass # Nếu lỗi tính toán quá phức tạp, bỏ qua
+
+        return 0.1 # Nếu trượt hết các check -> Logic sai
+    
+    def check_step_logic(self, gen_exprs, golden_exprs):
+        """
+        Tính điểm logic dựa trên chuỗi các biểu thức đã parse.
+        Input:
+            gen_exprs: List[SymPy Object] (Model generated steps)
+            golden_exprs: List[SymPy Object] (Ground Truth steps - dùng để tham chiếu nếu cần)
+        Output:
+            Float (0.0 -> 1.0)
+        """
+        # Nếu không có biểu thức nào hoặc chỉ có 1 bước -> Coi như logic OK (hoặc 0 tùy policy)
+        if not gen_exprs or len(gen_exprs) < 2:
+            return 1.0 
+
+        total_score = 0.0
+        transitions = 0
+
+        # Duyệt qua từng cặp bước liền kề trong gen_exprs
+        for i in range(len(gen_exprs) - 1):
+            prev = gen_exprs[i]
+            curr = gen_exprs[i+1]
+            
+            # Kiểm tra logic chuyển từ prev -> curr
+            score = self._verify_transition(prev, curr)
+            
+            total_score += score
+            transitions += 1
         
-        return 1.0
+        # Trả về điểm trung bình cộng logic của cả chuỗi
+        return total_score / transitions if transitions > 0 else 0.1
+    
+    # def _check_step_logic(self, gen_exprs, golden_exprs):
+    #     """
+    #     Kiểm tra logic của chuỗi bước.
+        
+    #     Ví dụ bad logic:
+    #     - "x = 5" rồi "2x = 10" (đảo ngược)
+    #     - "x = 5" rồi "x = 3" (mâu thuẫn)
+    #     """
+        
+        # if len(gen_exprs) < 2:
+        #     return 1.0  # Chỉ 1 bước thì ok
+        
+        # # Lấy solution của mỗi bước
+        # step_solutions = []
+        # for step in gen_exprs:
+        #     sols = self._get_solution_set(step)
+        #     step_solutions.append(sols)
+        
+        # # Kiểm tra không có mâu thuẫn
+        # for i in range(len(step_solutions) - 1):
+        #     curr_sols = step_solutions[i]
+        #     next_sols = step_solutions[i + 1]
+            
+        #     if curr_sols and next_sols:
+        #         # Kiểm tra: Các solutions có tương thích không?
+        #         compatible = False
+        #         for c in curr_sols:
+        #             for n in next_sols:
+        #                 try:
+        #                     if abs(float(c) - float(n)) < 1e-6:
+        #                         compatible = True
+        #                         break
+        #                 except: pass
+        #             if compatible: break
+                
+        #         if not compatible:
+        #             return 0.5  # ← Phạt nếu có mâu thuẫn logic
+        
+        # return 1.0
     
     def _check_tsa_step(self, step_expr, gt_final_expr, golden_exprs):
         """
