@@ -117,21 +117,6 @@ class PRMDataset(Dataset):
     def __len__(self):
         return len(self.tokenized_data)
 
-    # def __getitem__(self, idx):
-    #     item = self.data[idx]
-    #     encoding = self.tokenizer(
-    #         item['text'],
-    #         truncation=True,
-    #         max_length=self.max_len,
-    #         # padding="max_length",
-    #         # return_tensors="pt"
-    #     )
-    #     return {
-    #         "input_ids": encoding["input_ids"],
-    #         "attention_mask": encoding["attention_mask"],
-    #         # "labels": torch.tensor(item['label'], dtype=torch.long)
-    #         "labels": item['label']
-    #     }
     def __getitem__(self, idx):
         # Hàm này giờ chỉ việc lấy dữ liệu có sẵn, không cần tính toán gì cả -> Siêu nhanh
         return {
@@ -250,7 +235,7 @@ def train():
         per_device_train_batch_size=4,   # 4 hoặc 8 tùy VRAM (4 là an toàn cho GPU 8-12GB)
         per_device_eval_batch_size=4,
         gradient_accumulation_steps=8,   # Tích lũy gradient để batch size thực tế = 16
-        gradient_checkpointing=False,     # <--- CỰC KỲ QUAN TRỌNG: Tiết kiệm 50-70% VRAM (Đổi lại tốc độ train sẽ chậm hơn khoảng 20%)
+        gradient_checkpointing=False,     # Nếu dùng True thì uncommetn dòng dưới và phần được comment phía trên)
         # gradient_checkpointing_kwargs={"use_reentrant": False}, # <--- THÊM DÒNG NÀY (Thuốc đặc trị)
         learning_rate=2e-5,              # QUAN TRỌNG: LR thấp cho DeBERTa
         weight_decay=0.01,
@@ -302,5 +287,5 @@ def train():
     print("PRM Specialist Model trained, saved and metrics plotted!")
 
 if __name__ == "__main__":
-    train() # Uncomment để chạy
+    train() 
     pass

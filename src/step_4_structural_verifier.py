@@ -12,35 +12,6 @@ class StructuralVerifier:
         # Mặc định là 0.5 (50-50)
         self.centrality_weight = config['structural'].get('centrality_weight', 0.5)
 
-    # def verify_structure(self, graph):
-    #     """
-    #     Input: networkx.DiGraph (Raw Graph từ bước 3)
-    #     Output: networkx.DiGraph (Graph đã được update điểm số final_score)
-    #     """
-    #     if graph.number_of_nodes() == 0:
-    #         return graph  # Trả về nguyên bản nếu graph rỗng
-        
-    #     # 1. Tính toán PageRank hoặc Centrality
-    #     # Trong paper họ dùng Laplacian relaxation, nhưng PageRank là một approximation tốt
-    #     # để tìm ra các "trụ cột" trong luồng suy luận.
-    #     centrality_scores = nx.pagerank(self.graph, weight='weight')
-
-    #     for node in self.graph.nodes():
-    #         # Lấy điểm cục bộ (từ Atomic/Logical step)
-    #         local_conf = self.graph.nodes[node].get('total_confidence', 0)
-    #         count = self.graph.nodes[node].get('count', 1)
-
-    #         # 2. Kết hợp với Structural Score (Centrality)
-    #         # Một node đúng thường nằm trên các luồng chính (centrality cao)
-    #         struct_score = centrality_scores.get(node, 0)
-
-    #         # Cập nhật lại trọng số node
-    #         # Công thức lai ghép: Local * Structural
-    #         final_node_weight = (local_conf /count) * (1 + struct_score)
-
-    #         self.graph.nodes[node]['final_score'] = final_node_weight
-
-    #     return self.graph
 
     def verify_structure(self, graph):
         """

@@ -324,45 +324,6 @@ class DeepMathMetrics:
         # Trả về điểm trung bình cộng logic của cả chuỗi
         return total_score / transitions if transitions > 0 else 0.1
     
-    # def _check_step_logic(self, gen_exprs, golden_exprs):
-    #     """
-    #     Kiểm tra logic của chuỗi bước.
-        
-    #     Ví dụ bad logic:
-    #     - "x = 5" rồi "2x = 10" (đảo ngược)
-    #     - "x = 5" rồi "x = 3" (mâu thuẫn)
-    #     """
-        
-        # if len(gen_exprs) < 2:
-        #     return 1.0  # Chỉ 1 bước thì ok
-        
-        # # Lấy solution của mỗi bước
-        # step_solutions = []
-        # for step in gen_exprs:
-        #     sols = self._get_solution_set(step)
-        #     step_solutions.append(sols)
-        
-        # # Kiểm tra không có mâu thuẫn
-        # for i in range(len(step_solutions) - 1):
-        #     curr_sols = step_solutions[i]
-        #     next_sols = step_solutions[i + 1]
-            
-        #     if curr_sols and next_sols:
-        #         # Kiểm tra: Các solutions có tương thích không?
-        #         compatible = False
-        #         for c in curr_sols:
-        #             for n in next_sols:
-        #                 try:
-        #                     if abs(float(c) - float(n)) < 1e-6:
-        #                         compatible = True
-        #                         break
-        #                 except: pass
-        #             if compatible: break
-                
-        #         if not compatible:
-        #             return 0.5  # ← Phạt nếu có mâu thuẫn logic
-        
-        # return 1.0
     
     def _check_tsa_step(self, step_expr, gt_final_expr, golden_exprs):
         """

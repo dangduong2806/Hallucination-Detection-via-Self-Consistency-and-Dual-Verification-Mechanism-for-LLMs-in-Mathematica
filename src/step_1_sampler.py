@@ -98,34 +98,6 @@ class AdaptiveSampler:
             })
         return steps
 
-    # def extract_answer(self, text):
-    #     """
-    #     Helper: Trích xuất đáp án cuối cùng.
-    #     Ưu tiên định dạng \boxed{}, sau đó đến số cuối cùng.
-    #     """
-    #     if not text:
-    #         return None
-        
-    #     # 1. Chuẩn nhất: Tìm \boxed{ans} (Dữ liệu toán học thường dùng cái này)
-    #     match = re.search(r'\\boxed\{(.*?)\}', text)
-    #     if match:
-    #         return self._normalize_answer(match.group(1))
-        
-    #     # 2. Fallback: Tìm "The answer is..."
-    #     match = re.search(r'(?:answer|result) is\s*([0-9a-zA-Z\+\-\*\^\.]+)', text, re.IGNORECASE)
-    #     if match:
-    #         return self._normalize_answer(match.group(1))
-        
-    #     # 3. Fallback cuối cùng: Lấy cụm số/biểu thức cuối cùng của chuỗi
-    #     lines = text.strip().split('\n')
-    #     if lines:
-    #         last_line = lines[-1]
-    #         # Tìm cụm ký tự toán học ở cuối dòng
-    #         last_math = re.search(r'([0-9x\+\-\*\^]+)$', last_line)
-    #         if last_math:
-    #             return self._normalize_answer(last_math.group(1))
-        
-    #     return None
 
     def extract_answer(self, text):
         """
@@ -176,7 +148,3 @@ class AdaptiveSampler:
         ans = re.sub(r'[^\w\+\-\*\^\/\=\.]', '', ans)
         
         return ans if ans else None
-
-    # def _normalize_answer(self, ans_text):
-    #     """Làm sạch đáp án để so sánh chuỗi chính xác hơn"""
-    #     return ans_text.strip().lower().replace(" ", "")
